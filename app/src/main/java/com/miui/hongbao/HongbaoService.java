@@ -65,11 +65,10 @@ public class HongbaoService extends AccessibilityService {
         switch (Stage.getInstance().getCurrentStage()) {
             case Stage.OPENING_STAGE:
                 // 调试信息，打印TTL
-                // Log.d("TTL", String.valueOf(ttl));
+                 Log.d("TTL", String.valueOf(ttl));
 
                 /* 如果打开红包失败且还没到达最大尝试次数，重试 */
                 if (openHongbao(nodeInfo) == -1 && ttl < MAX_TTL) return;
-
                 ttl = 0;
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
@@ -98,7 +97,7 @@ public class HongbaoService extends AccessibilityService {
                         fetchedIdentifiers.add(id);
 
                         // 调试信息，在每次打开红包后打印出已经获取的红包
-                        // Log.d("fetched", Arrays.toString(fetchedIdentifiers.toArray()));
+                         Log.d("fetched", Arrays.toString(fetchedIdentifiers.toArray()));
 
                         Stage.getInstance().entering(Stage.OPENING_STAGE);
                         node.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
@@ -128,7 +127,9 @@ public class HongbaoService extends AccessibilityService {
 
         /* 聊天会话窗口，遍历节点匹配“领取红包” */
         List<AccessibilityNodeInfo> fetchNodes = nodeInfo.findAccessibilityNodeInfosByText("领取红包");
+//        List<AccessibilityNodeInfo> myOwnNodes = nodeInfo.findAccessibilityNodeInfosByText("查看红包");
 
+        /*没找到就返回*/
         if (fetchNodes.isEmpty()) return;
 
         for (AccessibilityNodeInfo cellNode : fetchNodes) {
@@ -137,11 +138,24 @@ public class HongbaoService extends AccessibilityService {
             /* 如果节点没有被回收且该红包没有抢过 */
             if (id != null && !fetchedIdentifiers.contains(id)) {
                 nodesToFetch.add(cellNode);
+                Log.e("wupeng", "添加别人发的待抢红包");
             }
         }
+//        if(!myOwnNodes.isEmpty()){
+//            for (AccessibilityNodeInfo cellNode : myOwnNodes) {
+//                String id = getHongbaoHash(cellNode);
+//
+//            /* 如果节点没有被回收且该红包没有抢过 */
+//                if (id != null && !fetchedIdentifiers.contains(id)) {
+//                    nodesToFetch.add(cellNode);
+//                    Log.e("wupeng", "cellNode:"+cellNode.);
+//                    Log.e("wupeng", "添加自己发的待抢红包");
+//                }
+//            }
+//        }
 
         // 调试信息，在每次fetch后打印出待抢红包
-        // Log.d("toFetch", Arrays.toString(nodesToFetch.toArray()));
+         Log.d("toFetch", Arrays.toString(nodesToFetch.toArray()));
     }
 
 
@@ -178,10 +192,30 @@ public class HongbaoService extends AccessibilityService {
         List<AccessibilityNodeInfo> preventNoticeNodes = nodeInfo.findAccessibilityNodeInfosByText("领取红包");
         if (!successNoticeNodes.isEmpty()) {
             AccessibilityNodeInfo openNode = successNoticeNodes.get(successNoticeNodes.size() - 1);
+            Log.e("wupeng","successNoticeNodes.size():"+successNoticeNodes.size());
+            Log.e("wupeng","openNode:"+openNode.isClickable());
+
             Stage.getInstance().entering(Stage.OPENED_STAGE);
+            try {
+                Thread.sleep(500);
+            }catch (Exception e){
+
+            }
             openNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            Log.e("wupeng","拆红包");
+            try {
+                Thread.sleep(500);
+            }catch (Exception e){
+
+            }
             return 0;
         } else {
+            try {
+                Thread.sleep(5);
+            }catch (Exception e){
+
+            }
+            Log.e("wupeng","正在打开");
             Stage.getInstance().entering(Stage.OPENING_STAGE);
             ttl += 1;
             return -1;
