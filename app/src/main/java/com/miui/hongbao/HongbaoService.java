@@ -36,7 +36,6 @@ public class HongbaoService extends AccessibilityService {
      * 尝试次数
      */
     private int ttl = 0;
-
     /**
      * AccessibilityEvent的回调方法
      * <p/>
@@ -62,6 +61,7 @@ public class HongbaoService extends AccessibilityService {
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     private void handleWindowChange(AccessibilityNodeInfo nodeInfo) {
+        deleteHongbao(nodeInfo);
         switch (Stage.getInstance().getCurrentStage()) {
             case Stage.OPENING_STAGE:
                 // 调试信息，打印TTL
@@ -83,6 +83,9 @@ public class HongbaoService extends AccessibilityService {
                 ttl = 0;
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
+
+
+
                 break;
             case Stage.FETCHED_STAGE:
                 /* 先消灭待抢红包队列中的红包 */
@@ -101,6 +104,7 @@ public class HongbaoService extends AccessibilityService {
 
                         Stage.getInstance().entering(Stage.OPENING_STAGE);
                         node.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+
                     }
                     return;
                 }
@@ -134,7 +138,12 @@ public class HongbaoService extends AccessibilityService {
 
         for (AccessibilityNodeInfo cellNode : fetchNodes) {
             String id = getHongbaoHash(cellNode);
+            if(fetchedIdentifiers.contains(id)){
+                Log.e("wupeng", "id:" + id + ",这个红包，已经打开过");
+                cellNode.getParent().performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
+                deleteHongbao(nodeInfo);
 
+            }
             /* 如果节点没有被回收且该红包没有抢过 */
             if (id != null && !fetchedIdentifiers.contains(id)) {
                 nodesToFetch.add(cellNode);
@@ -196,11 +205,11 @@ public class HongbaoService extends AccessibilityService {
             Log.e("wupeng","openNode:"+openNode.isClickable());
 
             Stage.getInstance().entering(Stage.OPENED_STAGE);
-            try {
-                Thread.sleep(500);
-            }catch (Exception e){
-
-            }
+//            try {
+//                Thread.sleep(500);
+//            }catch (Exception e){
+//
+//            }
             openNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             Log.e("wupeng","拆红包");
             try {
@@ -222,6 +231,27 @@ public class HongbaoService extends AccessibilityService {
         }
     }
 
+    private int deleteHongbao(AccessibilityNodeInfo nodeInfo) {
+        if (nodeInfo == null) return -1;
+        /* 删除 */
+        List<AccessibilityNodeInfo> successNoticeNodes = nodeInfo.findAccessibilityNodeInfosByText("删除");
+        if (!successNoticeNodes.isEmpty()) {
+            AccessibilityNodeInfo deleteNode = successNoticeNodes.get(successNoticeNodes.size() - 1);
+            Log.e("wupeng","deleteHongbao.size():"+successNoticeNodes.size());
+            Log.e("wupeng", "deleteNode:" + deleteNode.isClickable());
+            Log.e("wupeng", "deleteNode.getParent():" + deleteNode.getParent().isClickable());
+
+//            Stage.getInstance().entering(Stage.OPENED_STAGE);
+//            try {
+//                Thread.sleep(500);
+//            }catch (Exception e){
+//
+//            }
+            deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+
+        }
+        return 1;
+    }
     /**
      * 获取节点对象唯一的id，通过正则表达式匹配
      * AccessibilityNodeInfo@后的十六进制数字
