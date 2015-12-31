@@ -14,7 +14,7 @@ public class Stage {
     /**
      * 阶段常量
      */
-    public static final int FETCHING_STAGE = 0, OPENING_STAGE = 1, FETCHED_STAGE = 2, OPENED_STAGE = 3;
+    public static final int FETCHING_STAGE = 0, OPENING_STAGE = 1, FETCHED_STAGE = 2, OPENED_STAGE = 3, DELETING_STAGE = 4,DELETED_STAGE=5;
 
     /**
      * 当前阶段
