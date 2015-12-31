@@ -2,7 +2,10 @@ package com.miui.hongbao;
 
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
+import android.app.Notification;
+import android.app.PendingIntent;
 import android.os.Build;
+import android.os.Parcelable;
 import android.util.Log;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
@@ -36,7 +39,8 @@ public class HongbaoService extends AccessibilityService {
      * 尝试次数
      */
     private int ttl = 0;
-
+    private final static String TAG = "HONGBAO";
+    private final static String NOTIFICATION_TIP = "[微信红包]";
     AccessibilityNodeInfo mCurrentNode;
 
     /**
@@ -49,6 +53,24 @@ public class HongbaoService extends AccessibilityService {
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
+
+
+        if (event.getEventType() == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
+            String tip = event.getText().toString();
+            if (!tip.contains(NOTIFICATION_TIP)) {
+                return;
+            }
+            Parcelable parcelable = event.getParcelableData();
+            if (parcelable instanceof Notification) {
+                Notification notification = (Notification) parcelable;
+                try {
+                    notification.contentIntent.send();
+                } catch (PendingIntent.CanceledException e) {
+                    Log.e(TAG, "", e);
+                }
+            }
+            return;
+        }
 
         if (Stage.getInstance().mutex) return;
 
@@ -85,7 +107,7 @@ public class HongbaoService extends AccessibilityService {
                 }
                 ttl = 0;
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
-                Log.e("wupeng","!@!!!!!!!!!!!!!!!!!!!!!!回退");
+                Log.e("wupeng", "!@!!!!!!!!!!!!!!!!!!!!!!回退");
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
                 break;
             case Stage.FETCHED_STAGE:
@@ -220,7 +242,7 @@ public class HongbaoService extends AccessibilityService {
             openNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             Log.e("wupeng", "拆红包");
             try {
-                Thread.sleep(200);
+                Thread.sleep(300);
             } catch (Exception e) {
 
             }
