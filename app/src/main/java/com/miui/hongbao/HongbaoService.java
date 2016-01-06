@@ -64,9 +64,14 @@ public class HongbaoService extends AccessibilityService {
             if (parcelable instanceof Notification) {
                 Notification notification = (Notification) parcelable;
                 try {
-                    notification.contentIntent.send();
-                } catch (PendingIntent.CanceledException e) {
-                    Log.e(TAG, "", e);
+                    if (Stage.getInstance().getCurrentStage() == Stage.FETCHED_STAGE) {
+                        notification.contentIntent.send();
+                    } else  if (Stage.getInstance().getCurrentStage() != Stage.OPENING_STAGE) {
+                        Log.e("wupeng","呵呵"+Stage.getInstance().getCurrentStage());
+                        notification.contentIntent.send();
+                    }
+                } catch (Exception e) {
+                    Log.e("wupeng", "PendingIntent.CanceledException", e);
                 }
             }
             return;
@@ -86,7 +91,7 @@ public class HongbaoService extends AccessibilityService {
 
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     private void handleWindowChange(AccessibilityNodeInfo nodeInfo) {
-        deleteHongbao(nodeInfo);
+
         switch (Stage.getInstance().getCurrentStage()) {
             case Stage.OPENING_STAGE:
                 // 调试信息，打印TTL
@@ -111,6 +116,7 @@ public class HongbaoService extends AccessibilityService {
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
                 break;
             case Stage.FETCHED_STAGE:
+                deleteHongbao(nodeInfo);
                 /* 先消灭待抢红包队列中的红包 */
                 if (nodesToFetch.size() > 0) {
                     /* 从最下面的红包开始戳 */
@@ -139,15 +145,13 @@ public class HongbaoService extends AccessibilityService {
             case Stage.DELETING_STAGE:
                 if (mCurrentNode != null && mCurrentNode.getParent() != null) {
                     mCurrentNode.getParent().performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
-                    Stage.getInstance().entering(Stage.DELETED_STAGE);
                     Log.e("wupeng", "正在删除");
-
+                    Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 }
                 break;
-            case Stage.DELETED_STAGE:
-                Stage.getInstance().entering(Stage.FETCHED_STAGE);
-//                deleteHongbao(nodeInfo);
-                break;
+//            case Stage.DELETED_STAGE:
+//
+//                break;
         }
     }
 
@@ -242,7 +246,7 @@ public class HongbaoService extends AccessibilityService {
             openNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             Log.e("wupeng", "拆红包");
             try {
-                Thread.sleep(300);
+                Thread.sleep(250);
             } catch (Exception e) {
 
             }
@@ -276,8 +280,10 @@ public class HongbaoService extends AccessibilityService {
 //            }catch (Exception e){
 //
 //            }
-            deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
-
+            if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
+                Log.e("wupeng", "點擊刪除");
+                deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+            }
         }
     }
 
