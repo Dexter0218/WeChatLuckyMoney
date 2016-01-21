@@ -1,4 +1,4 @@
-package com.miui.hongbao;
+package com.qiandao.hongbao;
 
 /**
  * Created by ZhongyiTong on 9/30/15.

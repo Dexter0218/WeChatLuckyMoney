@@ -1,6 +1,7 @@
 <resources>
-    <string name="app_name">微信红包</string>
+    <string name="app_name">签到钱就到</string>
     <string name="service_status">当前辅助服务状态:</string>
     <string name="service_name">开启插件</string>
     <string name="node_recycled">错误: 当前节点已被重用，将会在下一轮中重新获取.</string>
+    <string name="description">说明：\r\n1.成功开启后，亮屏解锁状态下，微信开启消息通知时可以自动抢红包。\r\n2.抢完无论是否抢到，防止被系统检测到多次点击，都会删除红包。\r\n3.应用无联网等权限，仅检测红包，放心使用；\r\n若不信任，请卸载。\r\n4.腾讯有检测封号机制，勿安装腾讯类安全软件。\r\n5.若您无法使用，请见谅。\r\n\r\n注意：\r\n开启后，长按消息会自动删除该消息。\r\n可以通过长按消息，判断功能是否开启。\r\n在要进行分享、保存等操作时先关闭该功能。</string>
 </resources>
