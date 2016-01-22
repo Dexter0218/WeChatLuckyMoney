@@ -2,10 +2,17 @@ package com.qiandao.hongbao;
 
 import android.accessibilityservice.AccessibilityService;
 import android.annotation.TargetApi;
+import android.app.KeyguardManager;
 import android.app.Notification;
+import android.content.Context;
+import android.content.Intent;
+import android.hardware.display.DisplayManager;
 import android.os.Build;
 import android.os.Parcelable;
+import android.os.PowerManager;
+import android.os.SystemClock;
 import android.util.Log;
+import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
 
@@ -38,10 +45,22 @@ public class HongbaoService extends AccessibilityService {
     /**
      * 尝试次数
      */
+    private boolean flag = false;
+    private String lastFetchedHongbaoId, lastContentDescription = "";
     private int ttl = 0;
     private final static String TAG = "HONGBAO";
     private final static String NOTIFICATION_TIP = "[微信红包]";
     AccessibilityNodeInfo mCurrentNode;
+
+    private PowerManager pm;
+
+    private PowerManager.WakeLock lock = null;
+
+    private KeyguardManager kManager;
+
+    private KeyguardManager.KeyguardLock kLock = null;
+
+    private boolean isPrepare = false;
 
     /**
      * AccessibilityEvent的回调方法
@@ -53,24 +72,36 @@ public class HongbaoService extends AccessibilityService {
     @TargetApi(Build.VERSION_CODES.JELLY_BEAN)
     @Override
     public void onAccessibilityEvent(AccessibilityEvent event) {
-        if (!Util.isUseable()) {
-            return;
-        }
+//        if (!Util.isUseable()) {
+//            return;
+//        }
         if (event.getEventType() == AccessibilityEvent.TYPE_NOTIFICATION_STATE_CHANGED) {
             String tip = event.getText().toString();
+            Log.e(Tag, "onAccessibilityEvent: tip" + tip);
             if (!tip.contains(NOTIFICATION_TIP)) {
                 return;
+            }
+
+            if (!isScreenOn(this)) {
+                lightScreen();
+                isPrepare = true;
+            }
+            if (isLockOn()) {
+                unLock();
+                isPrepare = true;
             }
             Parcelable parcelable = event.getParcelableData();
             if (parcelable instanceof Notification) {
                 Notification notification = (Notification) parcelable;
                 try {
                     if (Stage.getInstance().getCurrentStage() == Stage.FETCHED_STAGE) {
+                        Log.e(Tag, "Stage.FETCHED_STAGE_>send()");
                         notification.contentIntent.send();
                     } else if (Stage.getInstance().getCurrentStage() != Stage.OPENING_STAGE) {
                         Log.e(Tag, "呵呵" + Stage.getInstance().getCurrentStage());
                         notification.contentIntent.send();
                     }
+
                 } catch (Exception e) {
                     Log.e(Tag, "PendingIntent.CanceledException", e);
                 }
@@ -95,6 +126,7 @@ public class HongbaoService extends AccessibilityService {
 
         switch (Stage.getInstance().getCurrentStage()) {
             case Stage.OPENING_STAGE:
+                Log.d(Tag, "OPENING_STAGE");
                 // 调试信息，打印TTL
                 Log.d("TTL", String.valueOf(ttl));
 
@@ -107,6 +139,7 @@ public class HongbaoService extends AccessibilityService {
 
                 break;
             case Stage.OPENED_STAGE:
+                Log.d(Tag, "OPENED_STAGE");
                 List<AccessibilityNodeInfo> successNodes = nodeInfo.findAccessibilityNodeInfosByText("红包详情");
                 if (successNodes.isEmpty() && ttl < MAX_TTL) {
                     ttl += 1;
@@ -118,6 +151,7 @@ public class HongbaoService extends AccessibilityService {
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
                 break;
             case Stage.FETCHED_STAGE:
+                Log.d(Tag, "FETCHED_STAGE");
                 deleteHongbao(nodeInfo);
                 /* 先消灭待抢红包队列中的红包 */
                 if (nodesToFetch.size() > 0) {
@@ -139,12 +173,13 @@ public class HongbaoService extends AccessibilityService {
                     }
                     return;
                 }
-
                 Stage.getInstance().entering(Stage.FETCHING_STAGE);
                 fetchHongbao(nodeInfo);
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
+
                 break;
             case Stage.DELETING_STAGE:
+                Log.d(Tag, "DELETING_STAGE");
                 checkBackFromHongbaoPage(nodeInfo);
                 if (mCurrentNode != null && mCurrentNode.getParent() != null) {
                     mCurrentNode.getParent().performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
@@ -171,13 +206,16 @@ public class HongbaoService extends AccessibilityService {
     private void fetchHongbao(AccessibilityNodeInfo nodeInfo) {
         if (nodeInfo == null) return;
 
+//        List<AccessibilityNodeInfo> myOwnNodes = nodeInfo.findAccessibilityNodeInfosByText("查看红包");
         /* 聊天会话窗口，遍历节点匹配“领取红包” */
         List<AccessibilityNodeInfo> fetchNodes = nodeInfo.findAccessibilityNodeInfosByText("领取红包");
-//        List<AccessibilityNodeInfo> myOwnNodes = nodeInfo.findAccessibilityNodeInfosByText("查看红包");
-
+        if (fetchNodes.isEmpty()) {
+            if (flag == false) {
+                flag = checkList(nodeInfo);
+            }
+            return;
+        }
         /*没找到就返回*/
-        if (fetchNodes.isEmpty()) return;
-
         for (AccessibilityNodeInfo cellNode : fetchNodes) {
 //            String id = getHongbaoHash(cellNode);
 //            if(fetchedIdentifiers.contains(id)){
@@ -254,7 +292,7 @@ public class HongbaoService extends AccessibilityService {
             openNode.performAction(AccessibilityNodeInfo.ACTION_CLICK);
             Log.e(Tag, "拆红包");
             try {
-                Thread.sleep(300);
+                Thread.sleep(500);
             } catch (Exception e) {
 
             }
@@ -292,6 +330,13 @@ public class HongbaoService extends AccessibilityService {
                 if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
                     Log.e(Tag, "點擊刪除");
                     deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                    flag=false;
+                    if (isPrepare) {
+                        if (performGlobalAction(GLOBAL_ACTION_RECENTS)) {
+                            clean();
+                        }
+                        isPrepare = false;
+                    }
                 }
             }
         }
@@ -378,5 +423,101 @@ public class HongbaoService extends AccessibilityService {
     public void performMyGlobalAction(int action) {
         Stage.getInstance().mutex = false;
         performGlobalAction(action);
+    }
+
+    /**
+     * 初始化环境
+     */
+
+
+    private void lightScreen() {
+        if (pm == null) {
+            pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
+        }
+        Log.e(Tag, "lightScreen()");
+        lock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG);
+        lock.acquire();
+    }
+
+    private void unLock() {
+        if (kManager == null) {
+            kManager = ((KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE));
+        }
+        Log.e(Tag, "unLock()");
+        kLock = kManager.newKeyguardLock(TAG);
+        kLock.disableKeyguard();
+    }
+
+    /**
+     * 清理环境
+     */
+    private void clean() {
+
+        Log.e(Tag, "clean()");
+        if (kLock != null) {
+            kLock.reenableKeyguard();
+            kLock = null;
+        }
+        if (lock != null) {
+            lock.release();
+            lock = null;
+        }
+    }
+
+    private boolean isLockOn() {
+        KeyguardManager kM = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+        if (kM != null) {
+            if (kM.isKeyguardLocked()) { // && kM.isKeyguardSecure()) {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
+    /**
+     * Is the screen of the device on.
+     *
+     * @param context the context
+     * @return true when (at least one) screen is on
+     */
+    public boolean isScreenOn(Context context) {
+//        if (android.os.Build.VERSION.SDK_INT >= Build.VERSION_CODES.KITKAT_WATCH) {
+//            DisplayManager dm = (DisplayManager) context
+//                    .getSystemService(Context.DISPLAY_SERVICE);
+//            boolean screenOn = false;
+//            for (Display display : dm.getDisplays()) {
+//                if (display.getState() != Display.STATE_OFF) {
+//                    screenOn = true;
+//                }
+//            }
+//            return screenOn;
+//        } else {
+        PowerManager pm = (PowerManager) context
+                .getSystemService(Context.POWER_SERVICE);
+        // noinspection deprecation
+        return pm.isScreenOn();
+//        }
+    }
+
+    private boolean checkList(AccessibilityNodeInfo nodeInfo) {
+        if (nodeInfo == null) {
+            return false;
+        }
+        List<AccessibilityNodeInfo> nodes = nodeInfo.findAccessibilityNodeInfosByText(NOTIFICATION_TIP);
+        if (!nodes.isEmpty()) {
+            AccessibilityNodeInfo nodeToClick = nodes.get(0);
+            CharSequence contentDescription = nodeToClick.getContentDescription();
+//            Log.e(Tag,"contentDescription:"+contentDescription);
+//            Log.e(Tag,"lastContentDescription:"+lastContentDescription);
+            if (contentDescription != null && nodeToClick != null && nodeToClick.isClickable()/*&& !lastContentDescription.equals(contentDescription)*/) {
+                nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
+                Log.e(Tag, "checkList->>ACTION_CLICK");
+//                Log.e(Tag, "fetchHongbao: "+ NOTIFICATION_TIP);
+//                lastContentDescription = contentDescription.toString();
+                return true;
+            }
+        }
+        return false;
     }
 }
