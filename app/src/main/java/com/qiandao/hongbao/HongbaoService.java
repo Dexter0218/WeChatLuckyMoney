@@ -129,14 +129,20 @@ public class HongbaoService extends AccessibilityService {
                 Log.d(Tag, "OPENING_STAGE");
                 // 调试信息，打印TTL
                 Log.d("TTL", String.valueOf(ttl));
-
+                int result = openHongbao(nodeInfo);
                 /* 如果打开红包失败且还没到达最大尝试次数，重试 */
-                if (openHongbao(nodeInfo) == -1 && ttl < MAX_TTL) return;
+                if (result == -1 && ttl < MAX_TTL) {
+                    return;
+                } else if (result == 0) {
+                    Log.e(Tag, "opened，to deleting");
+                    Stage.getInstance().entering(Stage.DELETING_STAGE);
+                    performMyGlobalAction(GLOBAL_ACTION_BACK);
+                } else {
+                    Log.e(Tag, "reOpen");
+                    Stage.getInstance().entering(Stage.FETCHED_STAGE);
+                }
                 ttl = 0;
-                Stage.getInstance().entering(Stage.DELETING_STAGE);
-                performMyGlobalAction(GLOBAL_ACTION_BACK);
                 if (nodesToFetch.size() == 0) handleWindowChange(nodeInfo);
-
                 break;
             case Stage.OPENED_STAGE:
                 Log.d(Tag, "OPENED_STAGE");
@@ -184,12 +190,17 @@ public class HongbaoService extends AccessibilityService {
                 if (mCurrentNode != null && mCurrentNode.getParent() != null) {
                     mCurrentNode.getParent().performAction(AccessibilityNodeInfo.ACTION_LONG_CLICK);
                     Log.e(Tag, "正在删除");
-                    Stage.getInstance().entering(Stage.FETCHED_STAGE);
+                    Stage.getInstance().entering(Stage.DELETED_STAGE);
                 }
                 break;
-//            case Stage.DELETED_STAGE:
-//
-//                break;
+            case Stage.DELETED_STAGE:
+                boolean tem = deleteHongbao(nodeInfo);
+                if (!tem) {
+                    Stage.getInstance().entering(Stage.DELETED_STAGE);
+                    return;
+                }
+                Stage.getInstance().entering(Stage.FETCHED_STAGE);
+                break;
         }
     }
 
@@ -310,8 +321,8 @@ public class HongbaoService extends AccessibilityService {
         }
     }
 
-    private void deleteHongbao(AccessibilityNodeInfo nodeInfo) {
-        if (nodeInfo == null) return;
+    private boolean deleteHongbao(AccessibilityNodeInfo nodeInfo) {
+        if (nodeInfo == null) return false;
         /* 删除 */
         List<AccessibilityNodeInfo> successNoticeNodes = nodeInfo.findAccessibilityNodeInfosByText("删除");
         if (!successNoticeNodes.isEmpty()) {
@@ -330,16 +341,18 @@ public class HongbaoService extends AccessibilityService {
                 if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
                     Log.e(Tag, "點擊刪除");
                     deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
-                    flag=false;
-                    if (isPrepare) {
+                    flag = false;
+                    if (isPrepare && nodesToFetch.size() == 0) {
                         if (performGlobalAction(GLOBAL_ACTION_RECENTS)) {
                             clean();
                         }
                         isPrepare = false;
                     }
+                    return true;
                 }
             }
         }
+        return false;
     }
 
     /**
