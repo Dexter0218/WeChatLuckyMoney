@@ -63,7 +63,7 @@ public class HongbaoService extends AccessibilityService {
     //是否进行了亮屏解锁操作
     private boolean isPrepare = false;
     //红包软件是否可用
-    private boolean isHongbaoAppOK=false;
+    private boolean isHongbaoAppOK = false;
 
     /**
      * AccessibilityEvent的回调方法
@@ -142,6 +142,7 @@ public class HongbaoService extends AccessibilityService {
                     performMyGlobalAction(GLOBAL_ACTION_BACK);
                 } else {
                     Log.e(Tag, "reOpen");
+                    checkList(nodeInfo);
                     Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 }
                 ttl = 0;
@@ -155,7 +156,7 @@ public class HongbaoService extends AccessibilityService {
                     return;
                 }
                 ttl = 0;
-                isHongbaoAppOK=false;
+                isHongbaoAppOK = false;
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 Log.e(Tag, "!@!!!!!!!!!!!!!!!!!!!!!!回退");
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
@@ -163,8 +164,8 @@ public class HongbaoService extends AccessibilityService {
             case Stage.FETCHED_STAGE:
                 Log.d(Tag, "FETCHED_STAGE");
 //                deleteHongbao(nodeInfo);
-                if(!isHongbaoAppOK){
-                    isHongbaoAppOK=isHongbaoOK(nodeInfo);
+                if (!isHongbaoAppOK) {
+                    isHongbaoAppOK = isHongbaoOK(nodeInfo);
                 }
 
                 /* 先消灭待抢红包队列中的红包 */
@@ -229,7 +230,7 @@ public class HongbaoService extends AccessibilityService {
         /* 聊天会话窗口，遍历节点匹配“领取红包” */
         List<AccessibilityNodeInfo> fetchNodes = nodeInfo.findAccessibilityNodeInfosByText("领取红包");
         if (fetchNodes.isEmpty()) {
-            if (flag == false) {
+            if (!flag && isPrepare) {
                 flag = checkList(nodeInfo);
             }
             return;
@@ -332,6 +333,7 @@ public class HongbaoService extends AccessibilityService {
 
     /**
      * 检测“删除”，并删除红包
+     *
      * @param nodeInfo
      * @return
      */
@@ -343,12 +345,12 @@ public class HongbaoService extends AccessibilityService {
             AccessibilityNodeInfo deleteNode = successNoticeNodes.get(successNoticeNodes.size() - 1);
             Log.e(Tag, "deleteHongbao.size():" + successNoticeNodes.size());
             Log.e(Tag, "deleteNode:" + deleteNode.isClickable());
-            if (deleteNode != null && deleteNode.getParent() != null && deleteNode.getText() != null && deleteNode.getText().equals("删除")) {
+            if (deleteNode.getParent() != null && deleteNode.getText() != null && deleteNode.getText().equals("删除")) {
                 if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
                     Log.e(Tag, "點擊刪除");
                     deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
                     flag = false;
-                    isHongbaoAppOK=false;
+                    isHongbaoAppOK = false;
                     if (isPrepare && nodesToFetch.size() == 0) {
                         if (performGlobalAction(GLOBAL_ACTION_RECENTS)) {
                             clean();
@@ -364,6 +366,7 @@ public class HongbaoService extends AccessibilityService {
 
     /**
      * 通过长按消息，检测是否有“删除”，判定红包软件是否可用
+     *
      * @param nodeInfo
      * @return
      */
@@ -480,6 +483,7 @@ public class HongbaoService extends AccessibilityService {
         lock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG);
         lock.acquire();
     }
+
     /**
      * 解锁
      */
@@ -510,6 +514,7 @@ public class HongbaoService extends AccessibilityService {
 
     /**
      * 判断是否加了安全锁
+     *
      * @return
      */
     private boolean isLockOn() {
@@ -550,6 +555,7 @@ public class HongbaoService extends AccessibilityService {
 
     /**
      * 检查聊天列表界面是否有“【微信红包】”，有就点进去
+     *
      * @param nodeInfo
      * @return
      */
@@ -563,7 +569,7 @@ public class HongbaoService extends AccessibilityService {
             CharSequence contentDescription = nodeToClick.getContentDescription();
 //            Log.e(Tag,"contentDescription:"+contentDescription);
 //            Log.e(Tag,"lastContentDescription:"+lastContentDescription);
-            if (contentDescription != null && nodeToClick != null && nodeToClick.isClickable()/*&& !lastContentDescription.equals(contentDescription)*/) {
+            if (contentDescription != null && nodeToClick.isClickable()/*&& !lastContentDescription.equals(contentDescription)*/) {
                 nodeToClick.performAction(AccessibilityNodeInfo.ACTION_CLICK);
                 Log.e(Tag, "checkList->>ACTION_CLICK");
 //                Log.e(Tag, "fetchHongbao: "+ NOTIFICATION_TIP);
