@@ -15,6 +15,7 @@ import android.util.Log;
 import android.view.Display;
 import android.view.accessibility.AccessibilityEvent;
 import android.view.accessibility.AccessibilityNodeInfo;
+import android.widget.Toast;
 
 import java.util.ArrayList;
 import java.util.Arrays;
@@ -42,25 +43,27 @@ public class HongbaoService extends AccessibilityService {
      * 允许的最大尝试次数
      */
     private static final int MAX_TTL = 24;
+
+    private boolean flag = false;
     /**
      * 尝试次数
      */
-    private boolean flag = false;
-    private String lastFetchedHongbaoId, lastContentDescription = "";
     private int ttl = 0;
     private final static String TAG = "HONGBAO";
     private final static String NOTIFICATION_TIP = "[微信红包]";
     AccessibilityNodeInfo mCurrentNode;
-
+    //电源管理
     private PowerManager pm;
-
+    //唤醒锁
     private PowerManager.WakeLock lock = null;
 
     private KeyguardManager kManager;
-
+    //安全锁
     private KeyguardManager.KeyguardLock kLock = null;
-
+    //是否进行了亮屏解锁操作
     private boolean isPrepare = false;
+    //红包软件是否可用
+    private boolean isHongbaoAppOK=false;
 
     /**
      * AccessibilityEvent的回调方法
@@ -152,13 +155,18 @@ public class HongbaoService extends AccessibilityService {
                     return;
                 }
                 ttl = 0;
+                isHongbaoAppOK=false;
                 Stage.getInstance().entering(Stage.FETCHED_STAGE);
                 Log.e(Tag, "!@!!!!!!!!!!!!!!!!!!!!!!回退");
                 performMyGlobalAction(GLOBAL_ACTION_BACK);
                 break;
             case Stage.FETCHED_STAGE:
                 Log.d(Tag, "FETCHED_STAGE");
-                deleteHongbao(nodeInfo);
+//                deleteHongbao(nodeInfo);
+                if(!isHongbaoAppOK){
+                    isHongbaoAppOK=isHongbaoOK(nodeInfo);
+                }
+
                 /* 先消灭待抢红包队列中的红包 */
                 if (nodesToFetch.size() > 0) {
                     /* 从最下面的红包开始戳 */
@@ -282,6 +290,7 @@ public class HongbaoService extends AccessibilityService {
         failureNoticeNodes.addAll(nodeInfo.findAccessibilityNodeInfosByText("红包详情"));
         failureNoticeNodes.addAll(nodeInfo.findAccessibilityNodeInfosByText("手慢了"));
         failureNoticeNodes.addAll(nodeInfo.findAccessibilityNodeInfosByText("过期"));
+        failureNoticeNodes.addAll(nodeInfo.findAccessibilityNodeInfosByText("失效"));
         if (!failureNoticeNodes.isEmpty()) {
             return 0;
         }
@@ -321,6 +330,11 @@ public class HongbaoService extends AccessibilityService {
         }
     }
 
+    /**
+     * 检测“删除”，并删除红包
+     * @param nodeInfo
+     * @return
+     */
     private boolean deleteHongbao(AccessibilityNodeInfo nodeInfo) {
         if (nodeInfo == null) return false;
         /* 删除 */
@@ -329,25 +343,41 @@ public class HongbaoService extends AccessibilityService {
             AccessibilityNodeInfo deleteNode = successNoticeNodes.get(successNoticeNodes.size() - 1);
             Log.e(Tag, "deleteHongbao.size():" + successNoticeNodes.size());
             Log.e(Tag, "deleteNode:" + deleteNode.isClickable());
-//            Log.e(Tag, "deleteNode.getParent():" + deleteNode.getParent().isClickable());
-
-//            Stage.getInstance().entering(Stage.OPENED_STAGE);
-//            try {
-//                Thread.sleep(500);
-//            }catch (Exception e){
-//
-//            }
             if (deleteNode != null && deleteNode.getParent() != null && deleteNode.getText() != null && deleteNode.getText().equals("删除")) {
                 if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
                     Log.e(Tag, "點擊刪除");
                     deleteNode.getParent().performAction(AccessibilityNodeInfo.ACTION_CLICK);
                     flag = false;
+                    isHongbaoAppOK=false;
                     if (isPrepare && nodesToFetch.size() == 0) {
                         if (performGlobalAction(GLOBAL_ACTION_RECENTS)) {
                             clean();
                         }
                         isPrepare = false;
                     }
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    /**
+     * 通过长按消息，检测是否有“删除”，判定红包软件是否可用
+     * @param nodeInfo
+     * @return
+     */
+    private boolean isHongbaoOK(AccessibilityNodeInfo nodeInfo) {
+        if (nodeInfo == null) return false;
+        /* 删除 */
+        List<AccessibilityNodeInfo> successNoticeNodes = nodeInfo.findAccessibilityNodeInfosByText("删除");
+        if (!successNoticeNodes.isEmpty()) {
+            AccessibilityNodeInfo deleteNode = successNoticeNodes.get(successNoticeNodes.size() - 1);
+            Log.e(Tag, "deleteHongbao.size():" + successNoticeNodes.size());
+            Log.e(Tag, "deleteNode:" + deleteNode.isClickable());
+            if (deleteNode != null && deleteNode.getParent() != null && deleteNode.getText() != null && deleteNode.getText().equals("删除")) {
+                if (deleteNode.getParent().getPackageName().equals("com.tencent.mm") && deleteNode.getParent().getClassName().equals("android.widget.LinearLayout")) {
+                    Toast.makeText(this, "软件开启成功", Toast.LENGTH_SHORT).show();
                     return true;
                 }
             }
@@ -438,11 +468,10 @@ public class HongbaoService extends AccessibilityService {
         performGlobalAction(action);
     }
 
+
     /**
-     * 初始化环境
+     * 点亮屏幕
      */
-
-
     private void lightScreen() {
         if (pm == null) {
             pm = (PowerManager) getSystemService(Context.POWER_SERVICE);
@@ -451,7 +480,9 @@ public class HongbaoService extends AccessibilityService {
         lock = pm.newWakeLock(PowerManager.ACQUIRE_CAUSES_WAKEUP | PowerManager.SCREEN_BRIGHT_WAKE_LOCK, TAG);
         lock.acquire();
     }
-
+    /**
+     * 解锁
+     */
     private void unLock() {
         if (kManager == null) {
             kManager = ((KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE));
@@ -477,6 +508,10 @@ public class HongbaoService extends AccessibilityService {
         }
     }
 
+    /**
+     * 判断是否加了安全锁
+     * @return
+     */
     private boolean isLockOn() {
         KeyguardManager kM = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
         if (kM != null) {
@@ -489,7 +524,7 @@ public class HongbaoService extends AccessibilityService {
     }
 
     /**
-     * Is the screen of the device on.
+     * 判断屏幕是否亮
      *
      * @param context the context
      * @return true when (at least one) screen is on
@@ -513,6 +548,11 @@ public class HongbaoService extends AccessibilityService {
 //        }
     }
 
+    /**
+     * 检查聊天列表界面是否有“【微信红包】”，有就点进去
+     * @param nodeInfo
+     * @return
+     */
     private boolean checkList(AccessibilityNodeInfo nodeInfo) {
         if (nodeInfo == null) {
             return false;
